@@ -1,5 +1,4 @@
 const fs = require('fs').promises;
-const { HttpsProxyAgent } = require('https-proxy-agent');
 const readline = require('readline');
 const chalk = require('chalk');
 
@@ -16,10 +15,12 @@ const colors = {
 
 // Display header information
 function displayHeader() {
-  console.log(colors.header('╔════════════════════════════════════════╗'));
-  console.log(colors.header('║      🎀 Blessing Assistant Safwan 🎀   ║'));
-  console.log(colors.header('║     🐱 Author: @wew404                ║'));
-  console.log(colors.header('╚════════════════════════════════════════╝'));
+  console.log(colors.header('╔════════════════════════════════════════════════════════════╗'));
+  console.log(colors.header('║                   🌟 Blessing Assistant 🌟                  ║'));
+  console.log(colors.header('║                  ✨ Author: @wew404                         ║'));
+  console.log(colors.header('║                   🚀 Version: 1.0.0                        ║'));
+  console.log(colors.header('║           🛠 Node Registration & Management Tool             ║'));
+  console.log(colors.header('╚════════════════════════════════════════════════════════════╝'));
   console.log();
 }
 
@@ -32,34 +33,6 @@ function logTimestamped(message, style = colors.info) {
 async function loadFetch() {
   const fetch = await import('node-fetch').then(module => module.default);
   return fetch;
-}
-
-// Prompt user for proxy usage
-async function promptUseProxy() {
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout,
-  });
-
-  return new Promise(resolve => {
-    rl.question('Do you want to use a proxy? (y/n): ', answer => {
-      rl.close();
-      resolve(answer.trim().toLowerCase() === 'y');
-    });
-  });
-}
-
-// Read proxy list
-async function readProxies() {
-  try {
-    const data = await fs.readFile('proxy.txt', 'utf-8');
-    const proxies = data.trim().split('\n').filter(proxy => proxy);
-    logTimestamped(`Loaded ${proxies.length} proxy configurations.`, colors.info);
-    return proxies;
-  } catch (error) {
-    logTimestamped(`Failed to read proxy file: ${error.message}`, colors.error);
-    return [];
-  }
 }
 
 // Read node and hardware ID list
@@ -94,9 +67,9 @@ async function readAuthToken() {
 }
 
 // Get IP address
-async function fetchIpAddress(fetch, agent) {
+async function fetchIpAddress(fetch) {
   try {
-    const response = await fetch('https://tight-block-2413.txlabs.workers.dev', { agent });
+    const response = await fetch('https://tight-block-2413.txlabs.workers.dev');
     const data = await response.json();
     logTimestamped(`Fetched IP address: ${colors.ip(data.ip)}`, colors.success);
     return data.ip;
@@ -107,7 +80,7 @@ async function fetchIpAddress(fetch, agent) {
 }
 
 // Register node
-async function registerNode(fetch, nodeId, hardwareId, authToken, ipAddress, agent) {
+async function registerNode(fetch, nodeId, hardwareId, authToken, ipAddress) {
   const registerUrl = `https://gateway-run.bls.dev/api/v1/nodes/${nodeId}`;
   logTimestamped(`Registering node ${colors.id(nodeId)}, hardware ID: ${colors.id(hardwareId)}, IP address: ${colors.ip(ipAddress)}`, colors.info);
 
@@ -119,7 +92,6 @@ async function registerNode(fetch, nodeId, hardwareId, authToken, ipAddress, age
         Authorization: `Bearer ${authToken}`,
       },
       body: JSON.stringify({ ipAddress, hardwareId }),
-      agent,
     });
 
     const data = await response.json();
@@ -132,7 +104,7 @@ async function registerNode(fetch, nodeId, hardwareId, authToken, ipAddress, age
 }
 
 // Start session
-async function startSession(fetch, nodeId, authToken, agent) {
+async function startSession(fetch, nodeId, authToken) {
   const sessionUrl = `https://gateway-run.bls.dev/api/v1/nodes/${nodeId}/start-session`;
   logTimestamped(`Starting session: ${colors.id(nodeId)}`, colors.info);
 
@@ -142,7 +114,6 @@ async function startSession(fetch, nodeId, authToken, agent) {
       headers: {
         Authorization: `Bearer ${authToken}`,
       },
-      agent,
     });
 
     const data = await response.json();
@@ -155,7 +126,7 @@ async function startSession(fetch, nodeId, authToken, agent) {
 }
 
 // Ping node
-async function pingNode(fetch, nodeId, authToken, agent) {
+async function pingNode(fetch, nodeId, authToken) {
   const pingUrl = `https://gateway-run.bls.dev/api/v1/nodes/${nodeId}/ping`;
   logTimestamped(`Pinging node: ${colors.id(nodeId)}`, colors.info);
 
@@ -165,7 +136,6 @@ async function pingNode(fetch, nodeId, authToken, agent) {
       headers: {
         Authorization: `Bearer ${authToken}`,
       },
-      agent,
     });
 
     const data = await response.json();
@@ -178,12 +148,12 @@ async function pingNode(fetch, nodeId, authToken, agent) {
 }
 
 // Process single node
-async function processNode(fetch, nodeId, hardwareId, authToken, proxy, agent) {
+async function processNode(fetch, nodeId, hardwareId, authToken) {
   try {
-    const ipAddress = await fetchIpAddress(fetch, agent);
-    await registerNode(fetch, nodeId, hardwareId, authToken, ipAddress, agent);
-    await startSession(fetch, nodeId, authToken, agent);
-    setInterval(() => pingNode(fetch, nodeId, authToken, agent), 60 * 1000);
+    const ipAddress = await fetchIpAddress(fetch);
+    await registerNode(fetch, nodeId, hardwareId, authToken, ipAddress);
+    await startSession(fetch, nodeId, authToken);
+    setInterval(() => pingNode(fetch, nodeId, authToken), 60 * 1000);
   } catch (error) {
     logTimestamped(`Failed to process node ${nodeId}: ${error.message}`, colors.error);
   }
@@ -194,23 +164,12 @@ async function run() {
   try {
     displayHeader();
 
-    const useProxy = await promptUseProxy();
     const fetch = await loadFetch();
     const authToken = await readAuthToken();
     const ids = await readNodeAndHardwareIds();
-    const proxies = await readProxies();
-
-    if (useProxy && proxies.length !== ids.length) {
-      logTimestamped('Proxy count does not match the node count. Please check the configuration file!', colors.error);
-      return;
-    }
 
     await Promise.all(
-      ids.map((id, index) => {
-        const proxy = useProxy ? proxies[index] : null;
-        const agent = proxy ? new HttpsProxyAgent(proxy) : null;
-        return processNode(fetch, id.nodeId, id.hardwareId, authToken, proxy, agent);
-      })
+      ids.map(id => processNode(fetch, id.nodeId, id.hardwareId, authToken))
     );
   } catch (error) {
     logTimestamped(`Run failed: ${error.message}`, colors.error);
