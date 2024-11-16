@@ -1,3 +1,4 @@
+                                            **MAIN AUTHOR @ksqxszq**
 # Blessing Assistant - The Intelligent Partner for Blockless Network 🤖🎉
 
 ## What is this assistant?
