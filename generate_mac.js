@@ -1,8 +1,9 @@
 const fs = require('fs');
 const readline = require('readline');
 const crypto = require('crypto');
+const chalk = require('chalk');
 
-// Randomly generate public key
+// Generate a random public key
 function generatePubKey(length = 52) {
     const prefix = "12D3KooW";
     const remainingLength = length - prefix.length;
@@ -12,7 +13,7 @@ function generatePubKey(length = 52) {
     ).join('');
 }
 
-// Randomly generate Mac device information
+// Generate random Mac device information
 function generateMacDeviceInfo() {
     const macModels = ['MacBookPro15,1', 'MacBookAir10,1', 'MacMini9,1', 'iMac20,1', 'MacPro7,1'];
     const macOSVersions = ['macOS 12.6 Monterey', 'macOS 13.0 Ventura', 'macOS 11.7 Big Sur'];
@@ -50,7 +51,7 @@ function generateMacDeviceInfo() {
     };
 }
 
-// Generate hardware ID based on hardware information
+// Generate Hardware ID based on hardware information
 function generateHardwareID(hardwareInfo) {
     const hardwareString = JSON.stringify(hardwareInfo);
     const hash = crypto.createHash('sha256');
@@ -62,10 +63,84 @@ function generateHardwareID(hardwareInfo) {
 function saveToFile(filename, data) {
     try {
         fs.writeFileSync(filename, data);
-        console.log(`✅ Data saved to ${filename}`);
+        console.log(chalk.green(`✅ Data saved to ${filename}`));
     } catch (error) {
-        console.error(`❌ Failed to save to file: ${error.message}`);
+        console.error(chalk.red(`❌ Failed to save to file: ${error.message}`));
     }
+}
+
+// User mode selection
+function modeSelection(rl) {
+    rl.question(chalk.cyan('Please choose generation mode (1 = Random Device, 2 = Based on Node ID): '), (mode) => {
+        if (mode === '1') {
+            randomDeviceMode(rl);
+        } else if (mode === '2') {
+            nodeIdDeviceMode(rl);
+        } else {
+            console.error(chalk.red('❌ Invalid option, please restart the script!'));
+            rl.close();
+        }
+    });
+}
+
+// Random device mode
+function randomDeviceMode(rl) {
+    rl.question(chalk.cyan('Please enter the number of devices to generate: '), (answer) => {
+        const total = parseInt(answer, 10);
+
+        if (isNaN(total) || total <= 0) {
+            console.error(chalk.red('❌ Please enter a valid number of devices!'));
+            rl.close();
+            return;
+        }
+
+        let output = '';
+        console.log(chalk.yellow(`Starting to generate information for ${total} devices...\n`));
+
+        for (let i = 0; i < total; i++) {
+            const deviceInfo = generateMacDeviceInfo();
+            console.log(chalk.blue(`Device ${i + 1}:\n`), deviceInfo);
+
+            output += `Device ${i + 1}:\n${JSON.stringify(deviceInfo, null, 2)}\n\n`;
+        }
+
+        saveToFile('mac_devices_random.txt', output);
+        rl.close();
+    });
+}
+
+// Node ID-based device mode
+function nodeIdDeviceMode(rl) {
+    rl.question(chalk.cyan('Please enter a custom Node ID: '), (nodeId) => {
+        if (!nodeId) {
+            console.error(chalk.red('❌ Node ID cannot be empty!'));
+            rl.close();
+            return;
+        }
+
+        const macModels = ['MacBookPro15,1', 'MacBookAir10,1'];
+        const hardwareInfo = {
+            model: macModels[Math.floor(Math.random() * macModels.length)],
+            cpu: 'Apple M1',
+            memory: '16GB',
+            storage: '512GB',
+            resolution: '2560x1600',
+        };
+
+        const hardwareID = generateHardwareID(hardwareInfo);
+        const publicKey = generatePubKey();
+
+        const deviceInfo = {
+            NodeID: nodeId,
+            publicKey,
+            hardwareID,
+        };
+
+        console.log(chalk.green(`Device Info:\n`), deviceInfo);
+
+        saveToFile('mac_devices_nodeid.txt', `${JSON.stringify(deviceInfo, null, 2)}\n`);
+        rl.close();
+    });
 }
 
 // Main function
@@ -75,28 +150,8 @@ function main() {
         output: process.stdout,
     });
 
-    rl.question('Enter the number of Mac devices to generate: ', (answer) => {
-        const total = parseInt(answer, 10);
-
-        if (isNaN(total) || total <= 0) {
-            console.error('❌ Please enter a valid device number!');
-            rl.close();
-            return;
-        }
-
-        let output = '';
-        console.log(`Starting to generate ${total} Mac device information...\n`);
-
-        for (let i = 0; i < total; i++) {
-            const deviceInfo = generateMacDeviceInfo();
-            console.log(`Device ${i + 1}:\n`, deviceInfo);
-
-            output += `Device ${i + 1}:\n${JSON.stringify(deviceInfo, null, 2)}\n\n`;
-        }
-
-        saveToFile('mac_devices.txt', output);
-        rl.close();
-    });
+    console.log(chalk.yellow('🎉 Welcome to the Mac Device Generator!'));
+    modeSelection(rl);
 }
 
 main();
